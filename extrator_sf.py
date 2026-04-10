@@ -2,7 +2,7 @@ import pandas as pd
 from simple_salesforce import Salesforce
 from datetime import datetime, timedelta, timezone
 import time
-import subprocess # Biblioteca para rodar o arquivo .bat
+import subprocess
 import os
 
 # --- CONFIGURAÇÕES E CREDENCIAIS ---
@@ -13,7 +13,7 @@ SF_TOKEN = "Focq5VJHTLn6TI5ZFpJCB3ZF7"
 CAMPO_ITEM_CONTRATO = 'FOZ_Asset__r.FOZ_CodigoItem__c'
 ARQUIVO_SAIDA = 'Base_OA_PowerBI.csv'
 ARQUIVO_DATA_HORA = 'data_hora_atualização.txt'
-NOME_DO_BAT = 'atualizar_github.bat' # <-- COLOQUE O NOME EXATO DO SEU ARQUIVO .BAT AQUI
+NOME_DO_BAT = 'atualizar_github.bat'
 
 def extract_field(record, field_path):
     parts = field_path.split('.')
@@ -36,9 +36,16 @@ def carregar_basecorp():
         pass
     return basecorp_dict
 
+# --- NOVA FUNÇÃO PARA AJUSTAR O FUSO HORÁRIO (-3 HORAS) ---
+def ajustar_fuso(data_string):
+    if not data_string:
+        return None
+    # Converte o UTC do Salesforce para Datetime e remove 3 horas para o horário de Brasília
+    return pd.to_datetime(data_string).tz_localize(None) - timedelta(hours=3)
+
 def extrair_e_processar():
     try:
-        print(f"\n[{datetime.now().strftime('%H:%M:%S')}] 🚀 Iniciando ciclo de atualização...")
+        print(f"\n[{datetime.now().strftime('%H:%M:%S')}] 🚀 Iniciando extração (ajustando fuso horário para o Brasil)...")
         sf = Salesforce(username=SF_USER, password=SF_PWD, security_token=SF_TOKEN, domain='login')
         basecorp_dict = carregar_basecorp()
         
@@ -63,7 +70,7 @@ def extrair_e_processar():
             records.extend(result.get('records', []))
 
         linhas = []
-        hoje_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+        agora_br = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=3)
         sf_base_url = "https://ibbl.lightning.force.com/lightning/r/Case/"
         
         for record in records:
@@ -78,20 +85,22 @@ def extrair_e_processar():
             else: fila_principal, subfila = "ATRIBUÍDO AO USUÁRIO", dono_upper
                 
             macro_status = "Fechado" if record.get('Status') in ['Closed', 'Fechado'] else "Em Tratativa"
-            data_abertura = pd.to_datetime(record['CreatedDate']).tz_localize(None) if record.get('CreatedDate') else hoje_utc
-            data_fechamento = pd.to_datetime(record['ClosedDate']).tz_localize(None) if record.get('ClosedDate') else None
+            
+            # --- APLICANDO O AJUSTE DE FUSO NAS DATAS PRINCIPAIS ---
+            data_abertura = ajustar_fuso(record.get('CreatedDate')) or agora_br
+            data_fechamento = ajustar_fuso(record.get('ClosedDate'))
             
             datas_interacoes = [data_abertura] 
             emails = record.get('EmailMessages')
             if emails and 'records' in emails:
                 for em in emails['records']:
                     if em.get('MessageDate'):
-                        datas_interacoes.append(pd.to_datetime(em['MessageDate']).tz_localize(None))
+                        datas_interacoes.append(ajustar_fuso(em['MessageDate']))
             comentarios = record.get('CaseComments')
             if comentarios and 'records' in comentarios:
                 for cc in comentarios['records']:
                     if cc.get('CreatedDate'):
-                        datas_interacoes.append(pd.to_datetime(cc['CreatedDate']).tz_localize(None))
+                        datas_interacoes.append(ajustar_fuso(cc['CreatedDate']))
             ultima_interacao = max(datas_interacoes)
 
             sla_macro = "No Prazo"
@@ -105,13 +114,13 @@ def extrair_e_processar():
                     sla_macro = "Atrasado"
 
             if fila_principal == "CASOS SEM FILA - GENÉRICO" and status_real_sf in ["aberto", "em aberto"]:
-                if (ultima_interacao + timedelta(hours=24) - hoje_utc).total_seconds() < 0:
+                if (ultima_interacao + timedelta(hours=24) - agora_br).total_seconds() < 0:
                     sla_macro = "Atrasado"
             elif fila_principal == "CORPORATIVO" and status_real_sf in ["aberto", "em aberto"]:
-                if (ultima_interacao + timedelta(hours=48) - hoje_utc).total_seconds() < 0:
+                if (ultima_interacao + timedelta(hours=48) - agora_br).total_seconds() < 0:
                     sla_macro = "Atrasado"
 
-            idade_dias = ((data_fechamento if data_fechamento else hoje_utc) - data_abertura).days
+            idade_dias = ((data_fechamento if data_fechamento else agora_br) - data_abertura).days
             acc = record.get('Account') or {}
             qtd_emails = len(emails['records']) if emails and 'records' in emails else 0
             qtd_comentarios = len(comentarios['records']) if comentarios and 'records' in comentarios else 0
@@ -142,14 +151,12 @@ def extrair_e_processar():
         df_final = pd.DataFrame(linhas)
         df_final.to_csv(ARQUIVO_SAIDA, index=False, encoding='utf-8-sig')
         
-        # --- ATUALIZA O ARQUIVO DE TEXTO COM DATA E HORA ---
-        agora_br = datetime.now().strftime('%d/%m/%Y às %H:%M')
+        agora_txt = datetime.now().strftime('%d/%m/%Y às %H:%M')
         with open(ARQUIVO_DATA_HORA, "w", encoding="utf-8") as f:
-            f.write(agora_br)
+            f.write(agora_txt)
         
         print(f"[{datetime.now().strftime('%H:%M:%S')}] Base salva e arquivo de data atualizado.")
 
-        # --- CHAMA O ARQUIVO .BAT PARA SUBIR PRO GITHUB ---
         print(f"[{datetime.now().strftime('%H:%M:%S')}] Enviando para o GitHub via {NOME_DO_BAT}...")
         subprocess.run([NOME_DO_BAT], shell=True)
         print(f"[{datetime.now().strftime('%H:%M:%S')}] Ciclo finalizado com sucesso!")
@@ -164,5 +171,4 @@ if __name__ == "__main__":
         proxima_rodada = datetime.now() + timedelta(hours=1)
         print(f"💤 Dormindo... Próxima atualização será às: {proxima_rodada.strftime('%H:%M:%S')}")
         
-        # Espera 1 hora (3600 segundos)
         time.sleep(3600)
