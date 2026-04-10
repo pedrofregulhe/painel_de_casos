@@ -57,11 +57,11 @@ st.markdown("""
         text-overflow: ellipsis;
     }
     .kpi-value {
-        font-size: 42px !important; /* <--- Ponto Doce (Nem meteórico, nem sumido) */
+        font-size: 32px !important; /* <--- Reduzido para 32px, bem mais elegante */
         color: #2c3e50;
-        font-weight: 800; /* Mais espesso para compensar a redução do tamanho */
+        font-weight: 700; /* Levemente menos espesso */
         margin: 0;
-        line-height: 1.1; 
+        line-height: 1.2; 
     }
     .stApp { background-color: #f8f9fa; }
     </style>
