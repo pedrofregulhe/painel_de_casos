@@ -30,4 +30,3 @@ echo      PROCESSO FINALIZADO! VERIFIQUE SEU GITHUB.
 echo.
 echo =================================================================
 echo.
-pause
