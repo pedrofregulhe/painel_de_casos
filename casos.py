@@ -122,7 +122,7 @@ if not df_completo.empty:
     
     # --- BARRA LATERAL ---
     try:
-        st.sidebar.image("logo.png", width=80) # <-- Ajuste este número (ex: 80, 100, 120) para o tamanho ideal
+        st.sidebar.image("logo.png", width=180) # <-- Ajuste este número (ex: 80, 100, 120) para o tamanho ideal
     except FileNotFoundError:
         st.sidebar.warning("⚠️ 'logo.png' não encontrado.")
 
