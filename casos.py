@@ -120,9 +120,12 @@ df_completo = carregar_dados()
 
 if not df_completo.empty:
     
-    # --- BARRA LATERAL ---
+# --- BARRA LATERAL ---
     try:
-        st.sidebar.image("logo.png", width=180) # <-- Ajuste este número (ex: 80, 100, 120) para o tamanho ideal
+        # Cria 3 colunas na lateral. A do meio (col_logo) recebe a imagem!
+        col1, col_logo, col2 = st.sidebar.columns([1, 3, 1]) 
+        with col_logo:
+            st.image("logo.png", use_container_width=True)
     except FileNotFoundError:
         st.sidebar.warning("⚠️ 'logo.png' não encontrado.")
 
