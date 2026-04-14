@@ -4,12 +4,20 @@ from datetime import datetime, timedelta, timezone
 import time
 import subprocess
 import os
-from dotenv import load_dotenv #
+from dotenv import load_dotenv
+
+# --- CONFIGURAÇÃO DO .ENV ---
+# Descobre a pasta exata onde este script python está salvo
+diretorio_atual = os.path.dirname(os.path.abspath(__file__))
+caminho_env = os.path.join(diretorio_atual, '.env')
+
+# Força o carregamento do .env usando o caminho absoluto
+load_dotenv(caminho_env)
 
 # --- CONFIGURAÇÕES E CREDENCIAIS ---
 SF_USER = os.getenv('SF_USER')
 SF_PWD = os.getenv('SF_PWD')
-SF_TOKEN = os.getenv('SF_TOKEN') 
+SF_TOKEN = os.getenv('SF_TOKEN')
 
 CAMPO_ITEM_CONTRATO = 'FOZ_Asset__r.FOZ_CodigoItem__c'
 ARQUIVO_SAIDA = 'Base_OA_PowerBI.csv'
@@ -26,17 +34,6 @@ def extract_field(record, field_path):
             return ""
     return str(val) if val is not None else ""
 
-def carregar_basecorp():
-    basecorp_dict = {}
-    try:
-        df_bc = pd.read_excel('basecorp.xlsx')
-        df_bc.columns = df_bc.columns.str.lower().str.strip()
-        df_bc['itemcontrato'] = df_bc['itemcontrato'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.lstrip('0')
-        basecorp_dict = dict(zip(df_bc['itemcontrato'], df_bc['carteira'].astype(str).str.strip()))
-    except:
-        pass
-    return basecorp_dict
-
 # --- NOVA FUNÇÃO PARA AJUSTAR O FUSO HORÁRIO (-3 HORAS) ---
 def ajustar_fuso(data_string):
     if not data_string:
@@ -48,7 +45,6 @@ def extrair_e_processar():
     try:
         print(f"\n[{datetime.now().strftime('%H:%M:%S')}] 🚀 Iniciando extração (ajustando fuso horário para o Brasil)...")
         sf = Salesforce(username=SF_USER, password=SF_PWD, security_token=SF_TOKEN, domain='login')
-        basecorp_dict = carregar_basecorp()
         
         query = f"""
         SELECT 
@@ -126,10 +122,6 @@ def extrair_e_processar():
             qtd_emails = len(emails['records']) if emails and 'records' in emails else 0
             qtd_comentarios = len(comentarios['records']) if comentarios and 'records' in comentarios else 0
             
-            raw_item_contrato = str(extract_field(record, CAMPO_ITEM_CONTRATO) or '').strip()
-            item_contrato_limpo = raw_item_contrato.lstrip('0') if raw_item_contrato else "0"
-            carteira_basecorp = str(basecorp_dict.get(item_contrato_limpo, "-") or "-")
-            
             linhas.append({
                 'Número': record.get('CaseNumber'),
                 'Link Salesforce': f"{sf_base_url}{record.get('Id')}/view",
@@ -144,7 +136,7 @@ def extrair_e_processar():
                 'SLA Macro': sla_macro,
                 'Regra SLA SF': regra_sla_sf,
                 'Idade (Dias)': idade_dias,
-                'BaseCorp Carteira': carteira_basecorp,
+                'BaseCorp Carteira': "-", 
                 'Qtd Interações (E-mails)': qtd_emails + qtd_comentarios,
                 'Última Interação': ultima_interacao.strftime('%d/%m/%Y %H:%M:%S')
             })
