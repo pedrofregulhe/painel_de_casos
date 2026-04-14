@@ -4,11 +4,12 @@ from datetime import datetime, timedelta, timezone
 import time
 import subprocess
 import os
+from dotenv import load_dotenv #
 
 # --- CONFIGURAÇÕES E CREDENCIAIS ---
-SF_USER = "ext-potavio@culligan.com"
-SF_PWD = "Bankai@Toshiro1025" 
-SF_TOKEN = "Focq5VJHTLn6TI5ZFpJCB3ZF7" 
+SF_USER = os.getenv('SF_USER')
+SF_PWD = os.getenv('SF_PWD')
+SF_TOKEN = os.getenv('SF_TOKEN') 
 
 CAMPO_ITEM_CONTRATO = 'FOZ_Asset__r.FOZ_CodigoItem__c'
 ARQUIVO_SAIDA = 'Base_OA_PowerBI.csv'
