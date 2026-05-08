@@ -49,7 +49,7 @@ def extrair_e_processar():
         query = f"""
         SELECT 
             Id, CaseNumber, CreatedDate, ClosedDate, Status, Description, Origin, Type, 
-            FOZ_TipoSolicitacao__c, FOZ_Motivo__c, FOZ_Detalhe__c, FOZ_SubStatus__c, OwnerId, Owner.Name, 
+            FOZ_TipoSolicitacao__c, FOZ_Motivo__c, FOZ_Detalhe__c, FOZ_SubStatus__c, OwnerId, Owner.Name, LastModifiedBy.Name,
             Account.Name, Account.FOZ_CNPJ__c, {CAMPO_ITEM_CONTRATO},
             (SELECT IsViolated, TargetDate, MilestoneType.Name FROM CaseMilestones ORDER BY TargetDate ASC),
             (SELECT Id, MessageDate FROM EmailMessages),
@@ -122,9 +122,15 @@ def extrair_e_processar():
             qtd_emails = len(emails['records']) if emails and 'records' in emails else 0
             qtd_comentarios = len(comentarios['records']) if comentarios and 'records' in comentarios else 0
             
+            # --- CAPTURANDO QUEM ACEITOU E QUEM FECHOU ---
+            quem_aceitou = record.get('Owner', {}).get('Name', '') if record.get('Owner') else ''
+            quem_fechou = record.get('LastModifiedBy', {}).get('Name', '') if record.get('LastModifiedBy') and macro_status == "Fechado" else ''
+            
             linhas.append({
                 'Número': record.get('CaseNumber'),
                 'Link Salesforce': f"{sf_base_url}{record.get('Id')}/view",
+                'Quem Aceitou': quem_aceitou,
+                'Quem Fechou': quem_fechou,
                 'Fila Principal': fila_principal,
                 'Subfila': subfila,
                 'Conta': str(acc.get('Name') or '-'),

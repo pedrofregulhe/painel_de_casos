@@ -215,7 +215,7 @@ if not df_completo.empty:
     st.markdown("---")
     
     colunas_base = [
-        'Número', 'Link Salesforce', 'Abertura', 'Fechamento', 'Fila Principal', 'Subfila', 
+        'Número', 'Link Salesforce', 'Abertura', 'Fechamento', 'Quem Aceitou', 'Quem Fechou', 'Fila Principal', 'Subfila', 
         'Qtd Interações (E-mails)', 'Última Interação', 'SLA Estipulado', 'SLA_Dinâmico', 'Conta'
     ]
     colunas_existentes = [c for c in colunas_base if c in df_filtrado.columns]
