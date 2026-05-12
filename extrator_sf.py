@@ -53,7 +53,8 @@ def extrair_e_processar():
             Account.Name, Account.FOZ_CNPJ__c, {CAMPO_ITEM_CONTRATO},
             (SELECT IsViolated, TargetDate, MilestoneType.Name FROM CaseMilestones ORDER BY TargetDate ASC),
             (SELECT Id, MessageDate FROM EmailMessages),
-            (SELECT Id, CreatedDate FROM CaseComments)
+            (SELECT Id, CreatedDate FROM CaseComments),
+            (SELECT OldValue FROM Histories WHERE Field = 'Owner' ORDER BY CreatedDate DESC)
         FROM Case 
         WHERE Type != 'OS' 
           AND (Type = 'OA' OR Owner.Name LIKE 'CARTEIRA%' OR Owner.Name LIKE '%GENÉRICO%' OR Owner.Name LIKE '%SEM FILA%')
@@ -126,9 +127,19 @@ def extrair_e_processar():
             quem_aceitou = record.get('Owner', {}).get('Name', '') if record.get('Owner') else ''
             quem_fechou = record.get('LastModifiedBy', {}).get('Name', '') if record.get('LastModifiedBy') and macro_status == "Fechado" else ''
             
+            # --- CAPTURANDO A FILA/DONO ANTERIOR ---
+            fila_anterior = "-"
+            historico = record.get('Histories')
+            if historico and 'records' in historico and len(historico['records']) > 0:
+                # Pega o OldValue do movimento mais recente de troca de Owner
+                old_val = historico['records'][0].get('OldValue')
+                if old_val:
+                    fila_anterior = str(old_val)
+            
             linhas.append({
                 'Número': record.get('CaseNumber'),
                 'Link Salesforce': f"{sf_base_url}{record.get('Id')}/view",
+                'Origem (Fila Anterior)': fila_anterior,
                 'Quem Aceitou': quem_aceitou,
                 'Quem Fechou': quem_fechou,
                 'Fila Principal': fila_principal,

@@ -57,9 +57,9 @@ st.markdown("""
         text-overflow: ellipsis;
     }
     .kpi-value {
-        font-size: 32px !important; /* <--- Reduzido para 32px, bem mais elegante */
+        font-size: 32px !important; 
         color: #2c3e50;
-        font-weight: 700; /* Levemente menos espesso */
+        font-weight: 700; 
         margin: 0;
         line-height: 1.2; 
     }
@@ -122,7 +122,6 @@ if not df_completo.empty:
     
 # --- BARRA LATERAL ---
     try:
-        # Cria 3 colunas na lateral. A do meio (col_logo) recebe a imagem!
         col1, col_logo, col2 = st.sidebar.columns([1, 3, 1]) 
         with col_logo:
             st.image("logo.png", use_container_width=True)
@@ -215,15 +214,19 @@ if not df_completo.empty:
     st.markdown("---")
     
     colunas_base = [
-        'Número', 'Link Salesforce', 'Abertura', 'Fechamento', 'Quem Aceitou', 'Quem Fechou', 'Fila Principal', 'Subfila', 
+        'Número', 'Link Salesforce', 'Abertura', 'Fechamento', 'Origem (Fila Anterior)', 'Quem Aceitou', 'Quem Fechou', 'Fila Principal', 'Subfila', 
         'Qtd Interações (E-mails)', 'Última Interação', 'SLA Estipulado', 'SLA_Dinâmico', 'Conta'
     ]
     colunas_existentes = [c for c in colunas_base if c in df_filtrado.columns]
     df_tabela = df_filtrado[colunas_existentes].copy()
 
     nomes_colunas = {
-        'Número': 'Caso', 'Link Salesforce': 'SalesForce', 'Fila Principal': 'Fila',
-        'Qtd Interações (E-mails)': 'Qtd de Interações', 'Conta': 'Cliente'
+        'Número': 'Caso', 
+        'Link Salesforce': 'SalesForce', 
+        'Origem (Fila Anterior)': 'Veio de', 
+        'Fila Principal': 'Fila',
+        'Qtd Interações (E-mails)': 'Qtd de Interações', 
+        'Conta': 'Cliente'
     }
     df_tabela.rename(columns=nomes_colunas, inplace=True)
 
