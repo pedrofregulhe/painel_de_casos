@@ -5,10 +5,10 @@ import os
 import plotly.express as px
 from io import BytesIO
 
-# 1. Configuração da Página - Sidebar recolhida por padrão para focar no novo layout amplo
+# 1. Configuração da Página - Sidebar recolhida por padrão
 st.set_page_config(page_title="Painel de Casos - Culligan", layout="wide", initial_sidebar_state="collapsed")
 
-# --- NOVO CUSTOM CSS (Visual Clean & Minimalista) ---
+# --- CUSTOM CSS (Visual Clean & Minimalista) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -206,10 +206,12 @@ if not df_completo.empty:
     with col_f2:
         if 'Status' in df_filtrado.columns:
             lista_status = sorted(df_completo['Status'].dropna().unique().tolist())
-            status_padrao = [s for s in lista_status if s.lower() not in ['fechado', 'closed']]
-            status_selecionados = st.multiselect("Status do Caso:", lista_status, default=status_padrao)
+            status_selecionados = st.multiselect("Status do Caso:", lista_status, default=[], placeholder="Vazio = Todos os Abertos")
+            
             if len(status_selecionados) > 0:
                 df_filtrado = df_filtrado[df_filtrado['Status'].isin(status_selecionados)]
+            else:
+                df_filtrado = df_filtrado[~df_filtrado['Status'].str.lower().isin(['fechado', 'closed'])]
 
     with col_f3:
         if 'Fila Principal' in df_filtrado.columns:
@@ -217,14 +219,15 @@ if not df_completo.empty:
             if "NPS" not in lista_filas:
                 lista_filas.append("NPS")
                 lista_filas = sorted(lista_filas)
-            filas_selecionadas = st.multiselect("Fila Principal:", lista_filas, default=lista_filas)
+            
+            filas_selecionadas = st.multiselect("Fila Principal:", lista_filas, default=[], placeholder="Vazio = Todas as Filas")
             if len(filas_selecionadas) > 0:
                 df_filtrado = df_filtrado[df_filtrado['Fila Principal'].isin(filas_selecionadas)]
 
     with col_f4:
         if 'Subfila' in df_filtrado.columns:
             lista_subfilas = sorted(df_completo['Subfila'].dropna().unique().tolist())
-            subfilas_selecionadas = st.multiselect("Subfila (Opcional):", lista_subfilas, default=[], help="Vazio mostra todas")
+            subfilas_selecionadas = st.multiselect("Subfila (Opcional):", lista_subfilas, default=[], placeholder="Vazio = Todas as Carteiras")
             if len(subfilas_selecionadas) > 0:
                 df_filtrado = df_filtrado[df_filtrado['Subfila'].isin(subfilas_selecionadas)]
                 
@@ -286,7 +289,7 @@ if not df_completo.empty:
                 fila_counts.columns = ['Carteira', 'Volume']
                 
                 fig_bar = px.bar(fila_counts, x='Volume', y='Carteira', orientation='h', text='Volume', color_discrete_sequence=['#005eb8'])
-                fig_bar.update_traces(textposition='outside', marker_radius=4)
+                fig_bar.update_traces(textposition='outside')
                 fig_bar.update_layout(yaxis={'categoryorder':'total ascending'}, margin=dict(t=20, b=10, l=10, r=10), height=320, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig_bar, use_container_width=True)
 
@@ -306,7 +309,6 @@ if not df_completo.empty:
         }
         df_tabela.rename(columns=nomes_colunas, inplace=True)
 
-        # Barra superior do extrato com título e botão alinhados
         ext_col1, ext_col2 = st.columns([3, 1])
         with ext_col1:
             st.markdown("<h4 style='color: #1e293b; font-size:18px; margin-top:5px;'>Extrato de Dados Filtrados</h4>", unsafe_allow_html=True)
