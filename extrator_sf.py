@@ -7,11 +7,9 @@ import os
 from dotenv import load_dotenv
 
 # --- CONFIGURAÇÃO DO .ENV ---
-# Descobre a pasta exata onde este script python está salvo
 diretorio_atual = os.path.dirname(os.path.abspath(__file__))
 caminho_env = os.path.join(diretorio_atual, '.env')
 
-# Força o carregamento do .env usando o caminho absoluto
 load_dotenv(caminho_env)
 
 # --- CONFIGURAÇÕES E CREDENCIAIS ---
@@ -34,11 +32,9 @@ def extract_field(record, field_path):
             return ""
     return str(val) if val is not None else ""
 
-# --- NOVA FUNÇÃO PARA AJUSTAR O FUSO HORÁRIO (-3 HORAS) ---
 def ajustar_fuso(data_string):
     if not data_string:
         return None
-    # Converte o UTC do Salesforce para Datetime e remove 3 horas para o horário de Brasília
     return pd.to_datetime(data_string).tz_localize(None) - timedelta(hours=3)
 
 def extrair_e_processar():
@@ -71,6 +67,8 @@ def extrair_e_processar():
         agora_br = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=3)
         sf_base_url = "https://ibbl.lightning.force.com/lightning/r/Case/"
         
+        ids_para_traduzir = set() # SET para armazenar os IDs do Salesforce (005 ou 00G)
+        
         for record in records:
             status_real_sf = str(record.get('Status') or '').strip().lower()
             dono_upper = str(record['Owner']['Name'] or '').upper() if record.get('Owner') else 'SISTEMA/SEM DONO'
@@ -84,7 +82,6 @@ def extrair_e_processar():
                 
             macro_status = "Fechado" if record.get('Status') in ['Closed', 'Fechado'] else "Em Tratativa"
             
-            # --- APLICANDO O AJUSTE DE FUSO NAS DATAS PRINCIPAIS ---
             data_abertura = ajustar_fuso(record.get('CreatedDate')) or agora_br
             data_fechamento = ajustar_fuso(record.get('ClosedDate'))
             
@@ -123,7 +120,6 @@ def extrair_e_processar():
             qtd_emails = len(emails['records']) if emails and 'records' in emails else 0
             qtd_comentarios = len(comentarios['records']) if comentarios and 'records' in comentarios else 0
             
-            # --- CAPTURANDO QUEM ACEITOU E QUEM FECHOU ---
             quem_aceitou = record.get('Owner', {}).get('Name', '') if record.get('Owner') else ''
             quem_fechou = record.get('LastModifiedBy', {}).get('Name', '') if record.get('LastModifiedBy') and macro_status == "Fechado" else ''
             
@@ -131,10 +127,12 @@ def extrair_e_processar():
             fila_anterior = "-"
             historico = record.get('Histories')
             if historico and 'records' in historico and len(historico['records']) > 0:
-                # Pega o OldValue do movimento mais recente de troca de Owner
                 old_val = historico['records'][0].get('OldValue')
                 if old_val:
                     fila_anterior = str(old_val)
+                    # Se for um ID do Salesforce (Usuário=005, Fila=00G), separa para traduzir depois
+                    if fila_anterior.startswith('005') or fila_anterior.startswith('00G'):
+                        ids_para_traduzir.add(fila_anterior)
             
             linhas.append({
                 'Número': record.get('CaseNumber'),
@@ -158,6 +156,47 @@ def extrair_e_processar():
                 'Última Interação': ultima_interacao.strftime('%d/%m/%Y %H:%M:%S')
             })
             
+        # --- TRADUÇÃO DOS IDs PARA NOMES (API SALESFORCE) ---
+        if ids_para_traduzir:
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Traduzindo {len(ids_para_traduzir)} IDs de Filas/Usuários...")
+            dicionario_nomes = {}
+            
+            # Separa em Usuários e Grupos/Filas
+            ids_users = [i for i in ids_para_traduzir if i.startswith('005')]
+            ids_groups = [i for i in ids_para_traduzir if i.startswith('00G')]
+            
+            # Busca Nomes de Usuários
+            if ids_users:
+                # Divide em lotes caso tenha muitos IDs para não estourar o limite da SOQL
+                for i in range(0, len(ids_users), 200):
+                    lote = ids_users[i:i+200]
+                    in_clause = "','".join(lote)
+                    try:
+                        res_users = sf.query(f"SELECT Id, Name FROM User WHERE Id IN ('{in_clause}')")
+                        for u in res_users.get('records', []):
+                            dicionario_nomes[u['Id']] = u['Name']
+                    except Exception as e:
+                        print(f"Erro ao buscar lote de Users: {e}")
+            
+            # Busca Nomes de Filas
+            if ids_groups:
+                for i in range(0, len(ids_groups), 200):
+                    lote = ids_groups[i:i+200]
+                    in_clause = "','".join(lote)
+                    try:
+                        res_groups = sf.query(f"SELECT Id, Name FROM Group WHERE Id IN ('{in_clause}')")
+                        for g in res_groups.get('records', []):
+                            dicionario_nomes[g['Id']] = g['Name']
+                    except Exception as e:
+                        print(f"Erro ao buscar lote de Groups: {e}")
+            
+            # Aplica a tradução nas linhas salvas
+            for linha in linhas:
+                valor_antigo = linha['Origem (Fila Anterior)']
+                if valor_antigo in dicionario_nomes:
+                    linha['Origem (Fila Anterior)'] = dicionario_nomes[valor_antigo]
+
+        # --- GERAÇÃO DO CSV ---
         df_final = pd.DataFrame(linhas)
         df_final.to_csv(ARQUIVO_SAIDA, index=False, encoding='utf-8-sig')
         
